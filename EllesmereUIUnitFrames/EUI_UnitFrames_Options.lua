@@ -13524,6 +13524,7 @@ initFrame:SetScript("OnEvent", function(self)
             db.profile.playerAuras[key] = v
             if ns.RefreshPlayerAuras then ns.RefreshPlayerAuras() end
             if ns.ApplyPlayerAuraScale then ns.ApplyPlayerAuraScale() end
+            if ns._RebuildUFDebuffDispelCurve then ns._RebuildUFDebuffDispelCurve() end
         end
 
         _, h = W:Spacer(parent, y, 20);  y = y - h

@@ -4902,6 +4902,66 @@ local function CreateCastBar(frame, unit, settings)
         castbar.kickReadyFill = kickReadyFill
     end
 
+    local UF_DISPEL_COLOR_KEYS = {
+        Magic   = "dispelColorMagic",
+        Curse   = "dispelColorCurse",
+        Disease = "dispelColorDisease",
+        Poison  = "dispelColorPoison",
+        [""]    = "dispelColorBleed",
+    }
+
+    local function GetUFDispelColor(dtype)
+        local p = db and db.profile
+        local key = UF_DISPEL_COLOR_KEYS[dtype]
+        if key and p and p[key] then return p[key] end
+        return nil
+    end
+
+    local _ufDebuffDispelCurve
+    local function RebuildUFDebuffDispelCurve()
+        if not (C_CurveUtil and C_CurveUtil.CreateColorCurve) then return end
+        local p = db and db.profile
+        _ufDebuffDispelCurve = C_CurveUtil.CreateColorCurve()
+        _ufDebuffDispelCurve:SetType(Enum.LuaCurveType.Step)
+        local function add(idx, key, dr, dg, dbv)
+            local col = p and p[key]
+            _ufDebuffDispelCurve:AddPoint(idx, CreateColor(col and col.r or dr, col and col.g or dg, col and col.b or dbv))
+        end
+        add(0,  "dispelColorMagic",   0.349, 0.475, 1.0)
+        add(1,  "dispelColorMagic",   0.349, 0.475, 1.0)
+        add(2,  "dispelColorCurse",   0.636, 0.0,   0.64)
+        add(3,  "dispelColorDisease", 0.671, 0.384, 0.098)
+        add(4,  "dispelColorPoison",  0.0,   0.706, 0.286)
+        add(9,  "dispelColorBleed",   0.75,  0.15,  0.15)
+        add(11, "dispelColorBleed",   0.75,  0.15,  0.15)
+    end
+    ns._RebuildUFDebuffDispelCurve = function() _ufDebuffDispelCurve = nil end
+
+    local function ApplyDebuffBorderColor(element, button, unit, data, position)
+        if not (button and button.Border and data) then return end
+        local dispelName = data.dispelName
+        local r, g, b, a = 1, 0, 0, 1
+        if dispelName ~= nil then
+            local dc
+            if not issecretvalue(dispelName) then
+                dc = GetUFDispelColor(dispelName)
+            else
+                if not _ufDebuffDispelCurve then RebuildUFDebuffDispelCurve() end
+                if _ufDebuffDispelCurve and C_UnitAuras.GetAuraDispelTypeColor then
+                    local col = C_UnitAuras.GetAuraDispelTypeColor(unit, data.auraInstanceID, _ufDebuffDispelCurve)
+                    if col then
+                        local cr, cg, cb = col:GetRGB()
+                        dc = { r = cr, g = cg, b = cb }
+                    end
+                end
+            end
+            if dc then r, g, b, a = dc.r, dc.g, dc.b, 1 end
+        end
+        if PP and PP.SetBorderColor then
+            PP.SetBorderColor(button.Border, r, g, b, a)
+        end
+    end
+
     castbar.CustomTimeText = function(self, durationObject)
         if self._showDuration == false then
             self.Time:SetText("")
@@ -5775,6 +5835,7 @@ local function CreateTargetAuras(frame, unit)
         debuffs.growthY = dgy
         ns.ApplyEUIAuraFilter(debuffs, "HARMFUL", settings)
         debuffs.PostCreateButton = SetupAuraIcon
+        debuffs.PostUpdateButton = ApplyDebuffBorderColor
         if settings and settings.onlyPlayerDebuffs then
             debuffs.onlyShowPlayer = true
         end
